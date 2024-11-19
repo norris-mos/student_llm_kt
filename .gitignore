@@ -1,0 +1,10 @@
+*.pt
+__pycache__/
+*.py[cod]
+*$py.class
+/mnt/ceph_rbd/LoRa/student_llm_kt/scripts/LoRa/model_data/
+/mnt/ceph_rbd/LoRa/student_llm_kt/scripts/DKT/Transformer/models
+wandb/
+model_data/
+scripts/LoRa/model_data/
+scripts/DKT/Transformer/models
