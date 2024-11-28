@@ -1,3 +1,4 @@
+import sys
 import json
 import torch
 import pickle
@@ -7,7 +8,7 @@ from unsloth import FastLanguageModel, is_bfloat16_supported
 from trl import SFTTrainer
 from transformers import TrainingArguments, TextStreamer
 from datasets import Dataset
-import sys
+
 import os
 
 def finetune_model(config_path):
@@ -106,7 +107,7 @@ def finetune_model(config_path):
     # Start training
     trainer.train()
 
-    model.save_pretrained('debug_model')
-    tokenizer.save_pretrained('debug_tokenizer')
+    model.save_pretrained('/mnt/ceph_rbd/LoRa/student_llm_kt/scripts/LoRa/model_data/mistral/mistral12b/debug_model')
+    tokenizer.save_pretrained('/mnt/ceph_rbd/LoRa/student_llm_kt/scripts/LoRa/model_data/mistral/mistral12b/debug_tokenizer')
 
     return model, tokenizer

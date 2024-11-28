@@ -2,12 +2,8 @@
     "feature_config": {
         "question_ids": {
             "type": "embedding",
-            "num_embeddings": 1657,
+            "num_embeddings": 1690,
             "embedding_dim": 64
-        },
-        "QuestionEmbedding": {
-            "type": "pretrained",
-            "input_dim": 1024
         },
         "selected_options": {
             "type": "embedding",
@@ -18,6 +14,10 @@
             "type": "embedding",
             "num_embeddings": 4,
             "embedding_dim": 64
+        },
+        "time_steps": {
+            "type": "continuous",
+            "input_dim": 2
         }
     },
     "model_config": {
@@ -27,14 +27,15 @@
         "dropout": 0.1
     },
     "training_config": {
-        "batch_size": 32,
-        "max_epochs": 10,
+        "batch_size": 64,
+        "max_epochs": 50,
         "patience": 10,
         "learning_rate": 0.001,
         "save_model": true,
         "save_dir": "/mnt/ceph_rbd/LoRa/student_llm_kt/scripts/DKT/Transformer/models/",
         "num_workers": 4,
-        "train_cache": "/mnt/ceph_rbd/LoRa/filtered_interaction_dictionaries/eedi_train2.pt"
+        "train_cache": "/mnt/ceph_rbd/LoRa/filtered_interaction_dictionaries/train_0.9.pt",
+        "test_cache": "/mnt/ceph_rbd/LoRa/filtered_interaction_dictionaries/test_0.1.pt"
     },
     "data_config": {
         "train_cache": null,

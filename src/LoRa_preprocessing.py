@@ -176,7 +176,7 @@ class DataFrame2InteractionDictionary():
                                                                 'correct_answer':self.num2option(sorted_interactions.iloc[max_seq_len].AnswerValue)
                                 }
 
-    def createedi(self,max_seq_len,include_fields=None,cache_path='/mnt/ceph_rbd/LoRa/filtered_interaction_dictionaries/eedi_train0.9.pt'):
+    def createedi(self,max_seq_len,include_fields=None,cache_path='/mnt/ceph_rbd/LoRa/filtered_interaction_dictionaries/'):
         
         """
         Because during training we can use the whole context of all interactions as the finetuning material we can quickly load this.
@@ -213,9 +213,12 @@ class DataFrame2InteractionDictionary():
                 interaction_counter+=1
                     # Save to cache if path provided
         if cache_path:
-            print(f"Saving filtered dataset to cache: {cache_path}")
+            train = cache_path + f"train_{self.train_split}.pt"
+            test = cache_path + f"test_{1-self.train_split}.pt"
+            print(f"Saving filtered dataset to cache: {train}")
             os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-            torch.save(self.train_dictionary, cache_path)
+            torch.save(self.train_dictionary, train)
+            torch.save(self.test_dictionary,test)
 
     def num2option(self,number):
         map_dict = {

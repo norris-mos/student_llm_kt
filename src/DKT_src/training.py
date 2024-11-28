@@ -199,8 +199,10 @@ def main():
         print("Loading train set from cache")
 
         all_training_data =  torch.load(config["training_config"]["train_cache"])
+        all_testing_data =  torch.load(config["training_config"]["test_cache"])
         train_data = {i: v for i, (k, v) in enumerate(list(all_training_data.items())[:-100])}
         val_data = {i: v for i, (k, v) in enumerate(list(all_training_data.items())[-100:])}
+        test_data = {i: v for i, (k, v) in enumerate(list(all_testing_data.items()))}
         
         
 
@@ -208,7 +210,7 @@ def main():
         #load data if not cached
         print("Creating train set from scratch")
         data = DataFrame2InteractionDictionary(answers,questions,misconceptions,question_subject,train_split=0.1)
-        data.createedi(3456784,'/mnt/ceph_rbd/LoRa/filtered_interaction_dictionaries/eedi_train2.pt')
+        data.createedi(3456784,'/mnt/ceph_rbd/LoRa/filtered_interaction_dictionaries/eedi_train0.9.pt')
 
 
 
@@ -243,7 +245,7 @@ def main():
     test_metrics = evaluate_model_class(model, test_loader)
     print("\nTest Set Metrics:")
     for metric, value in test_metrics.items():
-        print(f"{metric}: {value:.4f}")
+        print(f"{metric}: {value}")
 
 
 if __name__ == "__main__":

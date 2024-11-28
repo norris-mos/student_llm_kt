@@ -194,6 +194,109 @@ def process_dataset_in_batches(model, tokenizer, dataset, batch_size=8):
     
     return all_predictions
 
+def generate_response_clean(model, tokenizer, input_text, max_new_tokens=1):
+    """
+    Generate multiple choice responses using unsloth FastLanguageModel
+    Returns the last token generated with proper memory management
+    """
+    try:
+        # Prepare inputs
+        inputs = tokenizer(
+            input_text,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=40000
+        ).to(model.device)
+        
+        # Generate
+        with torch.no_grad():  # Prevent gradient computation
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
+                num_beams=1
+            )
+        
+        # Extract just the last token for each sequence
+        last_tokens = outputs[:, -1:]  # Get the last token indices
+        
+        # Decode only the last tokens
+        responses = tokenizer.batch_decode(last_tokens, skip_special_tokens=True)
+        
+        return responses
+    
+    finally:
+        # Clean up tensors
+        del inputs, outputs, last_tokens
+        torch.cuda.empty_cache()
+
+
+
+def process_dataset_in_batches_clean(model, tokenizer, dataset, batch_size=8):
+    """
+    Process entire dataset in batches with memory management
+    """
+    all_predictions = []
+    valid_answers = {'A', 'B', 'C', 'D'}
+    invalid_predictions = []
+    
+    def clean_prediction(pred):
+        return pred.strip().upper() if isinstance(pred, str) else pred
+
+    def standardize_prediction(pred):
+        cleaned = clean_prediction(pred)
+        return cleaned if cleaned in valid_answers else None
+    
+    try:
+        # Process data in batches
+        for i in range(0, len(dataset), batch_size):
+            # Clear cache at the start of each batch
+            torch.cuda.empty_cache()
+            
+            # Get current batch
+            batch = dataset[i:i + batch_size]
+            
+            # Generate predictions for batch
+            batch_predictions = generate_response_clean(model, tokenizer, batch)
+            
+            # Validate and clean predictions
+            for idx, pred in enumerate(batch_predictions):
+                cleaned_pred = standardize_prediction(pred)
+                if cleaned_pred is None:
+                    print('None')
+                    invalid_predictions.append({
+                        'batch_index': i + idx,
+                        'original_prediction': pred,
+                        'cleaned_prediction': clean_prediction(pred)
+                    })
+                    batch_predictions[idx] = 'NAN'
+                else:
+                    batch_predictions[idx] = cleaned_pred
+            
+            all_predictions.extend(batch_predictions)
+            
+            # Print progress and memory stats
+            print(f"Processed {i + len(batch)}/{len(dataset)} samples")
+            print(f"GPU Memory allocated: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+            print(f"GPU Memory cached: {torch.cuda.memory_reserved() / 1024**2:.2f} MB")
+            
+            # Optional: Force garbage collection
+            if i % (batch_size * 10) == 0:
+                import gc
+                gc.collect()
+                torch.cuda.empty_cache()
+    
+    except Exception as e:
+        print(f"Error during batch processing: {e}")
+        raise
+    
+    finally:
+        # Final cleanup
+        torch.cuda.empty_cache()
+    
+    return all_predictions
+
 
 def calculate_classification_metrics(y_true, y_pred):
     """
@@ -337,43 +440,89 @@ def load_data():
 
 def main():
 
+
+
+
     args = parse_args()
 
     with open(args.config, 'r') as f:
         config = json.load(f)
 
-    answers,questions,misconception,question_subject = load_data()
+    answers, questions, misconception, question_subject = load_data()
 
     loaded_dict = DataFrame2InteractionDictionary(answers, questions, misconception, question_subject, train_split=0.9, random_seed=42)
     loaded_dict.createTestDict()
 
-#     model,tokenizer = FastLanguageModel.from_pretrained(
-#     model_name = config["inference_checkpoint"], # YOUR MODEL YOU USED FOR TRAINING
-#     max_seq_length = config["max_seq_length"],
-#     dtype = config.get('dtype', None),
-#     load_in_4bit =True,
-# )
-    
-
     model, tokenizer = load_model_for_inference(
-    model_path='/mnt/ceph_rbd/Process-Knowledge-Tracing/scripts/LoRa/max_interactions/inference_check/checkpoint-13000',
-    tokenizer_path='/mnt/ceph_rbd/Process-Knowledge-Tracing/scripts/LoRa/max_interactions/debug_tokenizer',
-    config_path='/mnt/ceph_rbd/Process-Knowledge-Tracing/scripts/LoRa/max_interactions/llama3.2-20000.json'
-)
+        model_path='/mnt/ceph_rbd/LoRa/student_llm_kt/scripts/LoRa/model_data/mistral/mistral12b/checkpoint-35312',
+        tokenizer_path='/mnt/ceph_rbd/LoRa/student_llm_kt/scripts/LoRa/model_data/mistral/mistral12b/debug_tokenizer',
+        config_path='/mnt/ceph_rbd/LoRa/student_llm_kt/scripts/LoRa/model_data/mistral/mistral12b/mistral.json'
+    )
     FastLanguageModel.for_inference(model)
 
     dataset = StudentInteractionsDataset(
-    loaded_dict.test_dictionary,
-    tokenizer,
-    config['max_seq_length'],
-    cache_path=config["data_path"]
-    
-)
-    test_data = dataset.load_test_data()
-    tst = test_data['text']
-    print(f"Doing inference over {len(tst)} examples")
-    res = process_dataset_in_batches(model,tokenizer,tst,batch_size=20)
+        loaded_dict.test_dictionary,
+        tokenizer,
+        config['max_seq_length'],
+        cache_path=config["test_data"]
+    )
 
+    test_data = dataset.load_test_data()
+
+    test_texts = test_data['text']
+    ground_truth = test_data['response']  # Make sure this matches your dataset's true labels
+
+    print(f"Doing inference over {len(test_texts)} examples")
+    predictions = process_dataset_in_batches_clean(model, tokenizer, test_texts, batch_size=2)
+
+    # Calculate metrics
+    metrics = calculate_classification_metrics(ground_truth, predictions)
+
+    # Print detailed report
+    print_classification_report(metrics)
+
+    # Save predictions and metrics
+    results_dir = '/mnt/ceph_rbd/LoRa/student_llm_kt/scripts/LoRa/model_data/mistral/mistral12b'
+    os.makedirs(results_dir, exist_ok=True)
+
+    # Save predictions
+    predictions_df = pd.DataFrame({
+        'ground_truth': ground_truth,
+        'prediction': predictions
+    })
+    predictions_path = os.path.join(results_dir, 'predictions.csv')
+    predictions_df.to_csv(predictions_path, index=False)
+
+    # Save metrics as JSON
+    metrics_path = os.path.join(results_dir, 'metrics.json')
+    with open(metrics_path, 'w') as f:
+        json.dump(metrics, f, indent=4)
+
+    # Save confusion matrix visualization
+    if 'confusion_matrix' in metrics:
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+        
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(
+            metrics['confusion_matrix'],
+            annot=True,
+            fmt='d',
+            xticklabels=['A', 'B', 'C', 'D'],
+            yticklabels=['A', 'B', 'C', 'D']
+        )
+        plt.title('Confusion Matrix')
+        plt.xlabel('Predicted')
+        plt.ylabel('True')
+        
+        cm_path = os.path.join(results_dir, 'confusion_matrix.png')
+        plt.savefig(cm_path)
+        plt.close()
+
+    print(f"\nResults saved to {results_dir}:")
+    print(f"- Predictions: {predictions_path}")
+    print(f"- Metrics: {metrics_path}")
+    print(f"- Confusion Matrix: {cm_path}")
 
 if __name__ == "__main__":
     main()
