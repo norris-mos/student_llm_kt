@@ -1,0 +1,46 @@
+{
+    "model_name": "unsloth/Qwen2.5-7B",
+    "max_seq_length": 30000,
+    "load_in_4bit": true,
+    "hf_token": null,
+    "peft_config": {
+        "r": 16,
+        "target_modules": [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj"
+        ],
+        "lora_alpha": 16,
+        "lora_dropout": 0,
+        "bias": "none",
+        "use_gradient_checkpointing": "unsloth",
+        "random_state": 3407,
+        "use_rslora": false,
+        "loftq_config": null
+    },
+    "data_path": "/mnt/ceph_rbd/data/interaction_dictionaries/filtered_interaction_dictionaries/train_lora_qwen_0.9.pt",
+    "dataset_num_proc": 2,
+    "inference_checkpoint": "/mnt/ceph_rbd/student_llm_kt/scripts/LoRa/model_data/qwen/checkpoint-35312",
+    "test_data": "/mnt/ceph_rbd/data/interaction_dictionaries/filtered_interaction_dictionaries/test_lora_qwen_0.1.pt",
+    "packing": false,
+    "output_dir": "/mnt/ceph_rbd/data/models/qwen",
+    "training_args": {
+        "per_device_train_batch_size": 4,
+        "gradient_accumulation_steps": 4,
+        "warmup_steps": 50,
+        "max_steps": 10000,
+        "learning_rate": 2e-4,
+        "logging_steps": 50,
+        "optim": "adamw_8bit",
+        "weight_decay": 0.01,
+        "lr_scheduler_type": "linear",
+        "seed": 3407,
+        "save_total_limit": 1,
+        "eval_accumulation_steps": 1,
+        "report_to": "wandb"
+    }
+}
