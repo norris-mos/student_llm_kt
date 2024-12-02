@@ -438,6 +438,85 @@ def load_data():
     misconception = pd.read_csv(misconception)
     return answers,questions,misconception,question_subject
 
+
+def inference(model,tokenizer,config):
+
+
+
+
+    
+    answers, questions, misconception, question_subject = load_data()
+
+    loaded_dict = DataFrame2InteractionDictionary(answers, questions, misconception, question_subject, train_split=0.9, random_seed=42)
+    loaded_dict.createTestDict()
+
+    FastLanguageModel.for_inference(model)
+
+    dataset = StudentInteractionsDataset(
+        loaded_dict.test_dictionary,
+        tokenizer,
+        config['max_seq_length'],
+        cache_path=config["test_data"]
+    )
+
+    test_data = dataset.load_test_data()
+
+    test_texts = test_data['text']
+    ground_truth = test_data['response']  # Make sure this matches your dataset's true labels
+
+    print(f"Doing inference over {len(test_texts)} examples")
+    predictions = process_dataset_in_batches_clean(model, tokenizer, test_texts, batch_size=2)
+
+    # Calculate metrics
+    metrics = calculate_classification_metrics(ground_truth, predictions)
+
+    # Print detailed report
+    print_classification_report(metrics)
+
+    # Save predictions and metrics
+    results_dir = f'{config["output_dir"]}'
+    os.makedirs(results_dir, exist_ok=True)
+
+    # Save predictions
+    predictions_df = pd.DataFrame({
+        'ground_truth': ground_truth,
+        'prediction': predictions
+    })
+    predictions_path = os.path.join(results_dir, 'predictions.csv')
+    predictions_df.to_csv(predictions_path, index=False)
+
+    # Save metrics as JSON
+    metrics_path = os.path.join(results_dir, 'metrics.json')
+    with open(metrics_path, 'w') as f:
+        json.dump(metrics, f, indent=4)
+
+    # Save confusion matrix visualization
+    if 'confusion_matrix' in metrics:
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+        
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(
+            metrics['confusion_matrix'],
+            annot=True,
+            fmt='d',
+            xticklabels=['A', 'B', 'C', 'D'],
+            yticklabels=['A', 'B', 'C', 'D']
+        )
+        plt.title('Confusion Matrix')
+        plt.xlabel('Predicted')
+        plt.ylabel('True')
+        
+        cm_path = os.path.join(results_dir, 'confusion_matrix.png')
+        plt.savefig(cm_path)
+        plt.close()
+
+    print(f"\nResults saved to {results_dir}:")
+    print(f"- Predictions: {predictions_path}")
+    print(f"- Metrics: {metrics_path}")
+    print(f"- Confusion Matrix: {cm_path}")
+
+
 def main():
 
 

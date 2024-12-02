@@ -10,10 +10,11 @@ from unsloth import is_bfloat16_supported
 import sys
 import os
 import json
-sys.path.append('/mnt/ceph_rbd/student_llm_kt/src')
-sys.path.append('/mnt/ceph_rbd/student_llm_kt/src/DKT_src')
+sys.path.append('/mnt/ceph_rbd/LoRa/student_llm_kt/src')
+sys.path.append('/mnt/ceph_rbd/LoRa/student_llm_kt/src/DKT_src')
 from LoRa_preprocessing import StudentInteractionsDataset
 from lora_finetuning import finetune_model, finetune_model_cv
+from finetuned_inference import inference
 import argparse
 
 
@@ -36,7 +37,10 @@ def main():
         config = json.load(f)
 
   
-    model,tokenizer = finetune_model(args.config)
+    model,tokenizer = finetune_model_cv(args.config)
+
+    # then inference
+    inference(model,tokenizer,config)
 
 
 if __name__ == "__main__":
