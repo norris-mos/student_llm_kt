@@ -128,8 +128,7 @@ def finetune_model(config_path):
     return model, tokenizer
 
 
-def finetune_model_cv(config_path, n_splits=2
-, project_name="model-finetuning"):
+def finetune_model_cv(config_path, n_splits=5, project_name="model-finetuning"):
     # Load configuration
     with open(config_path, 'r') as f:
         config = json.load(f)
@@ -231,9 +230,9 @@ def finetune_model_cv(config_path, n_splits=2
             bf16=is_bfloat16_supported(),
             output_dir=fold_output_dir,
             evaluation_strategy="steps",     
-            eval_steps=2,                  # Increased from 2 to reduce overhead
+            eval_steps=250,                  # Increased from 2 to reduce overhead
             save_strategy="steps",
-            save_steps=4,
+            save_steps=250,
             load_best_model_at_end=True,     
             metric_for_best_model="loss",
             greater_is_better=False,
@@ -248,8 +247,8 @@ def finetune_model_cv(config_path, n_splits=2
             dataset_text_field="text",
             callbacks=[
                 EarlyStoppingCallback(
-                    early_stopping_patience=3,
-                    early_stopping_threshold=0.01
+                    early_stopping_patience=10,
+                    early_stopping_threshold=0.001
                 ),
                 WandbCallback(fold=fold)
             ],
@@ -435,9 +434,9 @@ def finetune_model_cv_double(config_path, n_splits=5, project_name="model-finetu
                 output_dir=fold_output_dir,
                 # Enable validation during training
                 evaluation_strategy="steps",     # Validate every n steps
-                eval_steps=2,                  # Adjust based on your dataset size
+                eval_steps=250,                  # Adjust based on your dataset size
                 save_strategy="steps",
-                save_steps=100,
+                save_steps=250,
                 load_best_model_at_end=True,     # Load best model based on in-training validation
                 metric_for_best_model="loss",
                 greater_is_better=False,
@@ -452,7 +451,7 @@ def finetune_model_cv_double(config_path, n_splits=5, project_name="model-finetu
                 dataset_text_field="text",
                 callbacks=[
                     EarlyStoppingCallback(
-                        early_stopping_patience=3,
+                        early_stopping_patience=10,
                         early_stopping_threshold=0.01
                     ),
                     WandbCallback(fold=fold)

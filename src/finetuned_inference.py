@@ -4,7 +4,8 @@ import sys
 import re
 import os
 from typing import Tuple, Optional
-sys.path.append('../../../src')
+sys.path.append('/mnt/ceph_rbd/student_llm_kt/src')
+sys.path.append('/mnt/ceph_rbd/student_llm_kt/src/DKT_src')
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel, PeftConfig
 import pickle
@@ -426,7 +427,7 @@ def parse_args():
     return parser.parse_args()
 
 def load_data():
-    data_path = os.path.join('/mnt/ceph_rbd/LoRa/data')
+    data_path = os.path.join('/mnt/ceph_rbd/data')
     data_path = os.path.normpath(data_path)  # Normalize the path to remove any redundant parts
     questions = os.path.join(data_path,'questions.csv')
     answers = os.path.join(data_path,'answer.csv')
@@ -533,9 +534,9 @@ def main():
     loaded_dict.createTestDict()
 
     model, tokenizer = load_model_for_inference(
-        model_path='/mnt/ceph_rbd/LoRa/student_llm_kt/scripts/LoRa/model_data/mistral/mistral12b/checkpoint-35312',
-        tokenizer_path='/mnt/ceph_rbd/LoRa/student_llm_kt/scripts/LoRa/model_data/mistral/mistral12b/debug_tokenizer',
-        config_path='/mnt/ceph_rbd/LoRa/student_llm_kt/scripts/LoRa/model_data/mistral/mistral12b/mistral.json'
+        model_path='/mnt/ceph_rbd/data/models/qwen/best_model',
+        tokenizer_path='/mnt/ceph_rbd/data/models/qwen/best_model',
+        config_path='/mnt/ceph_rbd/student_llm_kt/scripts/LoRa/qwen/qwen2.5.json'
     )
     FastLanguageModel.for_inference(model)
 
@@ -545,6 +546,7 @@ def main():
         config['max_seq_length'],
         cache_path=config["test_data"]
     )
+    print(config['test_data'])
 
     test_data = dataset.load_test_data()
 
@@ -561,7 +563,7 @@ def main():
     print_classification_report(metrics)
 
     # Save predictions and metrics
-    results_dir = '/mnt/ceph_rbd/LoRa/student_llm_kt/scripts/LoRa/model_data/mistral/mistral12b'
+    results_dir = '/mnt/ceph_rbd/data/models/qwen'
     os.makedirs(results_dir, exist_ok=True)
 
     # Save predictions

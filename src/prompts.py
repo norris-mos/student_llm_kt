@@ -60,3 +60,29 @@ D. {option_d}
 
 """
 
+
+
+PROMPT_TEMPLATE_BINARY= """
+
+### Instruction:
+{INSTRUCTION}
+
+### Input
+
+History:
+{history}
+
+
+### Next Question:
+{question}
+
+Options:
+A. {option_a}
+B. {option_b}
+C. {option_c}
+D. {option_d}
+
+
+### Response - Predict if the student 
+{RESPONSE}
+"""

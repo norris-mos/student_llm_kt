@@ -10,8 +10,14 @@ from unsloth import is_bfloat16_supported
 import sys
 import os
 import json
-sys.path.append('/mnt/ceph_rbd/LoRa/student_llm_kt/src')
-sys.path.append('/mnt/ceph_rbd/LoRa/student_llm_kt/src/DKT_src')
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)  # Process-Knowledge-Tracing
+data_dir = os.path.dirname(project_root)  # Go up one more level to get to data
+
+sys.path.append(os.path.join(data_dir,'src'))
+sys.path.append(os.path.join(data_dir,'src/DKT_src'))
+
 from LoRa_preprocessing import StudentInteractionsDataset
 from lora_finetuning import finetune_model, finetune_model_cv
 from finetuned_inference import inference

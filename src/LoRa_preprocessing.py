@@ -1,6 +1,7 @@
 import pandas as pd
 import sys
-sys.path.append('/mnt/ceph_rbd/LoRa/student_llm_kt/src/DKT_src')
+sys.path.append('/mnt/ceph_rbd/student_llm_kt/src/DKT_src')
+sys.path.append('/mnt/ceph_rbd/student_llm_kt/src')
 from datasets import Dataset
 import os
 from collections import defaultdict , namedtuple
@@ -21,10 +22,14 @@ def load_data(path):
 
   data_path = os.path.join(path)
   data_path = os.path.normpath(data_path)  # Normalize the path to remove any redundant parts
-  questions = os.path.join(data_path,'questions.csv')
-  answers = os.path.join(data_path,'answer.csv')
-  question_subject = os.path.join(data_path,'question-subject.csv')
-  misconception= os.path.join(data_path,'misconception.csv')
+#   questions = os.path.join(data_path,'questions.csv')
+  questions = '/mnt/ceph_rbd/data/questions.csv'
+  answers = '/mnt/ceph_rbd/data/answer.csv'
+  question_subject = '/mnt/ceph_rbd/data/question-subject.csv'
+  misconception = '/mnt/ceph_rbd/data/misconception.csv'
+#   answers = os.path.join(data_path,'answer.csv')
+#   question_subject = os.path.join(data_path,'question-subject.csv')
+#   misconception= os.path.join(data_path,'misconception.csv')
   questions = pd.read_csv(questions)
   answers = pd.read_csv(answers)
   question_subject = pd.read_csv(question_subject)
@@ -164,7 +169,8 @@ class DataFrame2InteractionDictionary():
                 self.train_dictionary[interaction_counter] = {'history':history,
                                                                 'question':sorted_interactions.iloc[-1].QuestionText,
                                                               'options':{'A':sorted_interactions.iloc[-1].AnswerAText,'B':sorted_interactions.iloc[-1].AnswerBText,'C':sorted_interactions.iloc[-1].AnswerCText,'D':sorted_interactions.iloc[-1].AnswerDText},
-                                                                'correct_answer':self.num2option(sorted_interactions.iloc[-1].AnswerValue)}
+                                                                'correct_answer':self.num2option(sorted_interactions.iloc[-1].AnswerValue)
+                                                                'is_correct':sorted_interactions.iloc[-1].isCorrect}
             else:
         
                 history = "\n\n".join(history_cache[:max_seq_len]) 
@@ -236,7 +242,7 @@ class DataFrame2InteractionDictionary():
         return option
     
         
-    def format_history_cached(self, user_history_df, include_fields=None):
+    def format_history_cached(self, user_history_df,task="binary", include_fields=None):
         if include_fields is None:
             include_fields = {
                 'DATE-TIME': 'DateAnswered',
@@ -263,9 +269,13 @@ class DataFrame2InteractionDictionary():
                     if field in ['AnswerValue', 'CorrectAnswer']:
                     
                         value = self.num2option(value)
+                    elif field in ['IsCorrect'] and task == "binary":
+                       
+                        value = 1 if interaction[field] else 0
                     item_parts.append(f"{label}: {value}")
+      
 
-            
+  
             item_string = "\n".join(item_parts)
 
             history_string.append(item_string)
@@ -422,6 +432,23 @@ class StudentInteractionsDataset(Dataset):
         #prompt = self.tokenizer.bos_token + prompt + self.tokenizer.eos_token
         prompt =  prompt + self.tokenizer.eos_token
         return prompt
+
+    def __getitemBinary__(self,idx):
+        item = self._data[idx]
+        prompt = PROMPT_TEMPLATE.format(
+            INSTRUCTION=INSTRUCTION,
+            history=item['history'],
+            question=item['question'],
+            option_a=item['options']['A'],
+            option_b=item['options']['B'],
+            option_c=item['options']['C'],
+            option_d=item['options']['D'],
+            RESPONSE=item['correct_answer']
+        )
+        #prompt = self.tokenizer.bos_token + prompt + self.tokenizer.eos_token
+        prompt =  prompt + self.tokenizer.eos_token
+        return prompt
+        
 
     def __getTestitem__(self, idx):
         item = self._data[idx]

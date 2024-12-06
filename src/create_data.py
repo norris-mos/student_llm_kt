@@ -1,12 +1,20 @@
 import sys
 import os
 
+
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)  # Process-Knowledge-Tracing
 data_dir = os.path.dirname(project_root)  # Go up one more level to get to data
+
+
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)  # Process-Knowledge-Tracing
+data_dir = os.path.dirname(project_root)  # Go up one more level to get to datacvc
 print(script_dir)
 print(project_root)
 print(data_dir)
+
 
 # Add source directories to path
 sys.path.append(os.path.join(project_root, 'src'))
