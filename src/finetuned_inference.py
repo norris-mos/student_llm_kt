@@ -232,6 +232,56 @@ def generate_response_clean(model, tokenizer, input_text, max_new_tokens=1):
         del inputs, outputs, last_tokens
         torch.cuda.empty_cache()
 
+def generate_response_deterministic(model, tokenizer, batch_texts):
+    """
+    Generate single token multiple choice responses (A,B,C,D only) for a batch of texts
+    """
+    try:
+        # Prepare inputs
+        inputs = tokenizer(
+            batch_texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=40000
+        ).to(model.device)
+
+        for i, text in enumerate(batch_texts):
+            print(f"Sequence {i} tokens: {len(inputs['input_ids'][i])}")
+
+        # Get the token IDs for A, B, C, D
+        option_tokens = torch.tensor(tokenizer.convert_tokens_to_ids(['A', 'B', 'C', 'D'])).to(model.device)
+        
+        # Single forward pass for entire batch
+        with torch.no_grad():
+            outputs = model(**inputs)
+            
+            # Get logits for the next token for all sequences
+            next_token_logits = outputs.logits[:, -1, :]  # [batch_size, vocab_size]
+            
+            # Only consider logits for A, B, C, D tokens
+            option_logits = next_token_logits[:, option_tokens]  # [batch_size, 4]
+            
+            # Get the indices of highest scoring tokens (relative to our option_tokens)
+            best_option_indices = torch.argmax(option_logits, dim=1)  # [batch_size]
+            
+            # Use advanced indexing to get the actual token ids
+            selected_tokens = option_tokens[best_option_indices]  # [batch_size]
+            
+            # Add sequence dimension for tokenizer
+            selected_tokens = selected_tokens.unsqueeze(-1)  # [batch_size, 1]
+            
+            # Decode all tokens in batch
+            responses = tokenizer.batch_decode(selected_tokens, skip_special_tokens=True)
+            
+            
+            return responses
+            
+    finally:
+        # Clean up tensors
+        del inputs, outputs, next_token_logits, option_logits, selected_tokens
+        torch.cuda.empty_cache()
+
 
 
 def process_dataset_in_batches_clean(model, tokenizer, dataset, batch_size=8):
@@ -259,7 +309,7 @@ def process_dataset_in_batches_clean(model, tokenizer, dataset, batch_size=8):
             batch = dataset[i:i + batch_size]
             
             # Generate predictions for batch
-            batch_predictions = generate_response_clean(model, tokenizer, batch)
+            batch_predictions = generate_response_deterministic(model, tokenizer, batch)
             
             # Validate and clean predictions
             for idx, pred in enumerate(batch_predictions):
