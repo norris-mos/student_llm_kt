@@ -170,7 +170,7 @@ class DataFrame2InteractionDictionary():
                                                                 'question':sorted_interactions.iloc[-1].QuestionText,
                                                               'options':{'A':sorted_interactions.iloc[-1].AnswerAText,'B':sorted_interactions.iloc[-1].AnswerBText,'C':sorted_interactions.iloc[-1].AnswerCText,'D':sorted_interactions.iloc[-1].AnswerDText},
                                                                 'correct_answer':self.num2option(sorted_interactions.iloc[-1].AnswerValue)
-                                                                'is_correct':sorted_interactions.iloc[-1].isCorrect}
+                                                                }
             else:
         
                 history = "\n\n".join(history_cache[:max_seq_len]) 
@@ -242,7 +242,7 @@ class DataFrame2InteractionDictionary():
         return option
     
         
-    def format_history_cached(self, user_history_df,task="binary", include_fields=None):
+    def format_history_cached(self, user_history_df,task="options", include_fields=None):
         if include_fields is None:
             include_fields = {
                 'DATE-TIME': 'DateAnswered',
