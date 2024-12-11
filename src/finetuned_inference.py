@@ -232,7 +232,7 @@ def generate_response_clean(model, tokenizer, input_text, max_new_tokens=1):
         del inputs, outputs, last_tokens
         torch.cuda.empty_cache()
 
-def generate_response_deterministic(model, tokenizer, batch_texts):
+def generate_response_deterministic(model, tokenizer, batch_texts,task="options"):
     """
     Generate single token multiple choice responses (A,B,C,D only) for a batch of texts
     """
@@ -249,8 +249,11 @@ def generate_response_deterministic(model, tokenizer, batch_texts):
         for i, text in enumerate(batch_texts):
             print(f"Sequence {i} tokens: {len(inputs['input_ids'][i])}")
 
-        # Get the token IDs for A, B, C, D
-        option_tokens = torch.tensor(tokenizer.convert_tokens_to_ids(['A', 'B', 'C', 'D'])).to(model.device)
+        if task == "options":
+            # Get the token IDs for A, B, C, D
+            option_tokens = torch.tensor(tokenizer.convert_tokens_to_ids(['A', 'B', 'C', 'D'])).to(model.device)
+        else:
+            option_tokens = torch.tensor(tokenizer.convert_tokens_to_ids(['1','0'])).to(model.device)
         
         # Single forward pass for entire batch
         with torch.no_grad():
@@ -284,12 +287,13 @@ def generate_response_deterministic(model, tokenizer, batch_texts):
 
 
 
-def process_dataset_in_batches_clean(model, tokenizer, dataset, batch_size=8):
+def process_dataset_in_batches_clean(model, tokenizer, dataset, batch_size=8,task="binary"):
     """
     Process entire dataset in batches with memory management
     """
     all_predictions = []
-    valid_answers = {'A', 'B', 'C', 'D'}
+    
+    valid_answers = {'A', 'B', 'C', 'D','1','0'}
     invalid_predictions = []
     
     def clean_prediction(pred):
@@ -297,6 +301,7 @@ def process_dataset_in_batches_clean(model, tokenizer, dataset, batch_size=8):
 
     def standardize_prediction(pred):
         cleaned = clean_prediction(pred)
+        print(cleaned)
         return cleaned if cleaned in valid_answers else None
     
     try:
@@ -309,7 +314,11 @@ def process_dataset_in_batches_clean(model, tokenizer, dataset, batch_size=8):
             batch = dataset[i:i + batch_size]
             
             # Generate predictions for batch
-            batch_predictions = generate_response_deterministic(model, tokenizer, batch)
+            batch_predictions = generate_response_deterministic(model, tokenizer, batch,task=task)
+            batch_test = generate_response_clean(model,tokenizer,batch)
+          
+
+       
             
             # Validate and clean predictions
             for idx, pred in enumerate(batch_predictions):
@@ -349,25 +358,36 @@ def process_dataset_in_batches_clean(model, tokenizer, dataset, batch_size=8):
     return all_predictions
 
 
-def calculate_classification_metrics(y_true, y_pred):
+def calculate_classification_metrics(y_true, y_pred, classification_type='options', class_labels=None):
     """
     Calculate classification metrics while properly handling NaN values.
     
     Parameters:
     -----------
     y_true : list or array-like
-        Ground truth labels (A, B, C, D)
+        Ground truth labels
     y_pred : list or array-like
-        Predicted labels (A, B, C, D, NAN)
-        
+        Predicted labels
+    classification_type : str
+        Type of classification: 'multiclass' or 'binary'
+    class_labels : list
+        List of class labels. If None:
+        - For multiclass: defaults to ['A', 'B', 'C', 'D']
+        - For binary: defaults to ['0', '1']
+    
     Returns:
     --------
     dict
         Dictionary containing various classification metrics
     """
-    # Convert inputs to numpy arrays
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
+    # Set default class labels if not provided
+    if class_labels is None:
+        class_labels = ['A', 'B', 'C', 'D'] if classification_type == 'options' else ['0', '1']
+    
+    # Convert inputs to numpy arrays and ensure string type
+    y_true = np.array([str(label) for label in y_true])
+    y_pred = np.array([str(label) for label in y_pred])
+    class_labels = [str(label) for label in class_labels]
     
     # Create a mask for valid predictions (non-NAN)
     valid_mask = y_pred != 'NAN'
@@ -392,15 +412,15 @@ def calculate_classification_metrics(y_true, y_pred):
         
         # Precision, recall, and F1 score for each class
         precision, recall, f1, support = precision_recall_fscore_support(
-            y_true_valid, 
+            y_true_valid,
             y_pred_valid,
-            labels=['A', 'B', 'C', 'D'],
+            labels=class_labels,
             zero_division=0
         )
         
         # Store per-class metrics
         class_metrics = {}
-        for idx, class_label in enumerate(['A', 'B', 'C', 'D']):
+        for idx, class_label in enumerate(class_labels):
             class_metrics[class_label] = {
                 'precision': precision[idx],
                 'recall': recall[idx],
@@ -424,14 +444,14 @@ def calculate_classification_metrics(y_true, y_pred):
         
         # Confusion Matrix
         metrics['confusion_matrix'] = confusion_matrix(
-            y_true_valid, 
+            y_true_valid,
             y_pred_valid,
-            labels=['A', 'B', 'C', 'D']
+            labels=class_labels
         )
         
     return metrics
 
-def print_classification_report(metrics):
+def print_classification_report(metrics, classification_type='options'):
     """
     Print a formatted classification report.
     
@@ -439,31 +459,39 @@ def print_classification_report(metrics):
     -----------
     metrics : dict
         Dictionary containing classification metrics
+    classification_type : str
+        Type of classification: 'multiclass' or 'binary'
     """
     print("Classification Report")
     print("=" * 50)
+    print(f"Type: {classification_type.capitalize()}")
     print(f"Total Samples: {metrics['total_samples']}")
     print(f"Valid Predictions: {metrics['valid_predictions']}")
     print(f"NaN Predictions: {metrics['nan_predictions']} ({metrics['nan_rate']:.2%})")
-    print("\nOverall Accuracy: {:.2%}".format(metrics['accuracy']))
-    print("\nPer-Class Metrics:")
-    print("-" * 50)
-    print(f"{'Class':<10} {'Precision':>10} {'Recall':>10} {'F1-Score':>10} {'Support':>10}")
-    print("-" * 50)
     
-    for class_label, class_metric in metrics['class_metrics'].items():
-        print(f"{class_label:<10} {class_metric['precision']:>10.2%} {class_metric['recall']:>10.2%} "
-              f"{class_metric['f1_score']:>10.2%} {class_metric['support']:>10}")
-    
-    print("\nAverage Metrics:")
-    print("-" * 50)
-    print("Macro Average:")
-    macro = metrics['macro_avg']
-    print(f"{'':10} {macro['precision']:>10.2%} {macro['recall']:>10.2%} {macro['f1_score']:>10.2%}")
-    print("Weighted Average:")
-    weighted = metrics['weighted_avg']
-    print(f"{'':10} {weighted['precision']:>10.2%} {weighted['recall']:>10.2%} {weighted['f1_score']:>10.2%}")
-
+    if metrics['valid_predictions'] > 0:
+        print("\nOverall Accuracy: {:.2%}".format(metrics['accuracy']))
+        
+        print("\nPer-Class Metrics:")
+        print("-" * 50)
+        print(f"{'Class':<10} {'Precision':>10} {'Recall':>10} {'F1-Score':>10} {'Support':>10}")
+        print("-" * 50)
+        
+        for class_label, class_metric in metrics['class_metrics'].items():
+            print(f"{class_label:<10} {class_metric['precision']:>10.2%} {class_metric['recall']:>10.2%} "
+                  f"{class_metric['f1_score']:>10.2%} {class_metric['support']:>10}")
+        
+        print("\nAverage Metrics:")
+        print("-" * 50)
+        print("Macro Average:")
+        macro = metrics['macro_avg']
+        print(f"{'':<10} {macro['precision']:>10.2%} {macro['recall']:>10.2%} {macro['f1_score']:>10.2%}")
+        print("Weighted Average:")
+        weighted = metrics['weighted_avg']
+        print(f"{'':<10} {weighted['precision']:>10.2%} {weighted['recall']:>10.2%} {weighted['f1_score']:>10.2%}")
+        
+        print("\nConfusion Matrix:")
+        print(metrics['confusion_matrix'])
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Model evaluation script')
@@ -512,8 +540,8 @@ def inference(model,tokenizer,config):
 
     test_data = dataset.load_test_data()
 
-    test_texts = test_data['text']
-    ground_truth = test_data['response']  # Make sure this matches your dataset's true labels
+    test_texts = test_data['text'][:5]
+    ground_truth = test_data['response'][:5]  # Make sure this matches your dataset's true labels
 
     print(f"Doing inference over {len(test_texts)} examples")
     predictions = process_dataset_in_batches_clean(model, tokenizer, test_texts, batch_size=2)
@@ -581,12 +609,17 @@ def main():
     answers, questions, misconception, question_subject = load_data()
 
     loaded_dict = DataFrame2InteractionDictionary(answers, questions, misconception, question_subject, train_split=0.9, random_seed=42)
-    loaded_dict.createTestDict()
+    if config["task"] == "binary":
+        print(f'Carrying out binary KT task')
+        loaded_dict.createTestDictBinary()
+
+    else:
+        loaded_dict.createTestDict()
 
     model, tokenizer = load_model_for_inference(
-        model_path='/mnt/ceph_rbd/data/models/qwen/best_model',
-        tokenizer_path='/mnt/ceph_rbd/data/models/qwen/best_model',
-        config_path='/mnt/ceph_rbd/student_llm_kt/scripts/LoRa/qwen/qwen2.5.json'
+        model_path=config["inference_checkpoint"],
+        tokenizer_path=config["inference_checkpoint"],
+        config_path=args.config
     )
     FastLanguageModel.for_inference(model)
 
@@ -598,22 +631,26 @@ def main():
     )
     print(config['test_data'])
 
-    test_data = dataset.load_test_data()
+    test_data = dataset.load_test_data(task=config["task"])
 
     test_texts = test_data['text']
-    ground_truth = test_data['response']  # Make sure this matches your dataset's true labels
+    
+    ground_truth = test_data['response'] # Make sure this matches your dataset's true labels
 
     print(f"Doing inference over {len(test_texts)} examples")
-    predictions = process_dataset_in_batches_clean(model, tokenizer, test_texts, batch_size=2)
+    predictions = process_dataset_in_batches_clean(model, tokenizer, test_texts, batch_size=2,task=config["task"])
+    print(predictions)
+    print(ground_truth)
 
     # Calculate metrics
-    metrics = calculate_classification_metrics(ground_truth, predictions)
+    metrics = calculate_classification_metrics(ground_truth, predictions,classification_type='binary')
 
     # Print detailed report
+    
     print_classification_report(metrics)
 
     # Save predictions and metrics
-    results_dir = '/mnt/ceph_rbd/data/models/qwen'
+    results_dir = '/mnt/ceph_rbd/data/models/llama'
     os.makedirs(results_dir, exist_ok=True)
 
     # Save predictions

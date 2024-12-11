@@ -163,7 +163,7 @@ def finetune_model_cv(config_path, n_splits=5, project_name="model-finetuning"):
         config['max_seq_length'],
         cache_path=config['data_path']
     )
-    train_data = dataset.load_data()
+    train_data = dataset.load_data(task="binary")
         # Convert to format expected by SFTTrainer
     # formatted_dataset = Dataset.from_dict({
     #     'text': train_data
@@ -203,7 +203,7 @@ def finetune_model_cv(config_path, n_splits=5, project_name="model-finetuning"):
         
         # Create train and validation splits for this fold
         train_texts = [all_data[i] for i in train_idx]
-        val_texts = [all_data[i] for i in val_idx][:5]  # This is our validation set for this fold
+        val_texts = [all_data[i] for i in val_idx] # This is our validation set for this fold
         
         # Create datasets
         train_dataset = Dataset.from_dict({"text": train_texts})
@@ -247,7 +247,7 @@ def finetune_model_cv(config_path, n_splits=5, project_name="model-finetuning"):
             dataset_text_field="text",
             callbacks=[
                 EarlyStoppingCallback(
-                    early_stopping_patience=10,
+                    early_stopping_patience=2,
                     early_stopping_threshold=0.001
                 ),
                 WandbCallback(fold=fold)

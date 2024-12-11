@@ -34,6 +34,9 @@ D. {option_d}
 INSTRUCTION = """
 Given the interaction history of this user predict what response they will give to the following Multiple Choice Question out of option A, B, C or D.
 """
+INSTRUCTION_BINARY = """
+Given the interaction history of this user predict if  they will correctly answer the following Multiple Choice Question.
+"""
 
 PROMPT_TEMPLATE_TEST = """
 
@@ -60,6 +63,31 @@ D. {option_d}
 
 """
 
+PROMPT_TEMPLATE_TEST_BINARY = """
+
+### Instruction:
+{INSTRUCTION}
+
+### Input
+
+History:
+{history}
+
+
+### Next Question:
+{question}
+
+Options:
+A. {option_a}
+B. {option_b}
+C. {option_c}
+D. {option_d}
+
+
+### Response - Predict if the student correctly answers the question by selection 1 or incorrectly by selecting 0:
+
+"""
+
 
 
 PROMPT_TEMPLATE_BINARY= """
@@ -83,6 +111,6 @@ C. {option_c}
 D. {option_d}
 
 
-### Response - Predict if the student 
+### Response - Predict if the student get this question correct: 1 or incorrect: 0:
 {RESPONSE}
 """

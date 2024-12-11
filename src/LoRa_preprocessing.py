@@ -5,7 +5,7 @@ sys.path.append('/mnt/ceph_rbd/student_llm_kt/src')
 from datasets import Dataset
 import os
 from collections import defaultdict , namedtuple
-from prompts import PROMPT_TEMPLATE, INSTRUCTION, PROMPT_TEMPLATE_TEST, STUDENT_START_TOKEN, INTERACTION_SEP_TOKEN, HISTORY_END_TOKEN
+from prompts import PROMPT_TEMPLATE,PROMPT_TEMPLATE_BINARY, INSTRUCTION,INSTRUCTION_BINARY, PROMPT_TEMPLATE_TEST, PROMPT_TEMPLATE_TEST_BINARY
 import math
 import torch
 
@@ -91,7 +91,7 @@ class DataFrame2InteractionDictionary():
         print(f"Number of quizzes is {self.num_quizzes}")
 
 
-    def createTestDict(self):
+    def createTestDict(self,include_fields=None):
         
         """
 
@@ -115,6 +115,56 @@ class DataFrame2InteractionDictionary():
 
 
             history_cache = self.format_history_cached(sorted_interactions,include_fields=None)
+            
+
+
+            for index,row in sorted_interactions.iterrows():
+                 
+                 interaction_counter+=1
+               
+             
+                 history = "\n\n".join(history_cache[:index])
+
+                 
+          
+                 
+                 
+              
+                 
+                 
+      
+                 self.test_dictionary[interaction_counter] = {'history':history,
+                                                                    'question':row.QuestionText,
+                                                                    'options':{'A':row.AnswerAText,'B':row.AnswerBText,'C':row.AnswerCText,'D':row.AnswerDText},
+                                                                    'correct_answer':self.num2option(row.AnswerValue)
+
+                                    }
+            
+                 
+    def createTestDictBinary(self):
+        
+        """
+
+        For testing we need to try and predict on each subset of context and hence have to split up each user
+
+        Parameters:
+        sort_by:
+        - Creates the interaction dictionary with 
+        
+        """
+
+        # loop over each users history
+        interaction_counter = 0
+        for user in self.test_users:
+
+            # extract interaction df
+            interactions = self.merge[self.merge['UserId']==user]
+
+
+            sorted_interactions = interactions.sort_values(by='DateAnswered').reset_index(drop=True)
+
+
+            history_cache = self.format_history_cached(sorted_interactions,task='binary',include_fields=None)
 
 
             for index,row in sorted_interactions.iterrows():
@@ -130,10 +180,9 @@ class DataFrame2InteractionDictionary():
                  self.test_dictionary[interaction_counter] = {'history':history,
                                                                     'question':row.QuestionText,
                                                                     'options':{'A':row.AnswerAText,'B':row.AnswerBText,'C':row.AnswerCText,'D':row.AnswerDText},
-                                                                    'correct_answer':self.num2option(row.AnswerValue)
-                                    }
+                                                                    'correct_answer': 1 if row.IsCorrect  else 0}
                  
-    def createTrainDictionary(self,max_seq_len):
+    def createTrainDictionary(self,max_seq_len,include_fields=None):
         
         """
         Because during training we can use the whole context of all interactions as the finetuning material we can quickly load this.
@@ -154,7 +203,7 @@ class DataFrame2InteractionDictionary():
             sorted_interactions = interactions.sort_values(by='DateAnswered').reset_index(drop=True)
 
 
-            history_cache = self.format_history_cached(sorted_interactions,include_fields=None)
+            history_cache = self.format_history_cached(sorted_interactions,include_fields)
 
 
             if len(history_cache) <1:
@@ -171,6 +220,59 @@ class DataFrame2InteractionDictionary():
                                                               'options':{'A':sorted_interactions.iloc[-1].AnswerAText,'B':sorted_interactions.iloc[-1].AnswerBText,'C':sorted_interactions.iloc[-1].AnswerCText,'D':sorted_interactions.iloc[-1].AnswerDText},
                                                                 'correct_answer':self.num2option(sorted_interactions.iloc[-1].AnswerValue)
                                                                 }
+            else:
+        
+                history = "\n\n".join(history_cache[:max_seq_len]) 
+               
+
+                self.interactionDictionary[interaction_counter] = {'history':history,
+                                                                'question':sorted_interactions.iloc[max_seq_len].QuestionText,
+                                                                'options':{'A':sorted_interactions.iloc[max_seq_len].AnswerAText,'B':sorted_interactions.iloc[max_seq_len].AnswerBText,'C':sorted_interactions.iloc[max_seq_len].AnswerCText,'D':sorted_interactions.iloc[max_seq_len].AnswerDText},
+                                                                'correct_answer':self.num2option(sorted_interactions.iloc[max_seq_len].AnswerValue)
+                                }
+
+    def createTrainDictionaryBinary(self,max_seq_len):
+        
+        """
+        Because during training we can use the whole context of all interactions as the finetuning material we can quickly load this.
+        Parameters:
+        sort_by:
+        - Creates the interaction dictionary with 
+        
+        """
+
+        # loop over each users history
+        interaction_counter = 0
+        for user in self.train_users:
+
+            # extract interaction df
+            interactions = self.merge[self.merge['UserId']==user]
+
+
+            sorted_interactions = interactions.sort_values(by='DateAnswered').reset_index(drop=True)
+  
+
+
+            history_cache = self.format_history_cached(sorted_interactions,task='binary',include_fields=None)
+
+
+            if len(history_cache) <1:
+                continue
+                 
+            interaction_counter+=1
+        
+        # take the biggest interaction length for this student if < max
+            if len(history_cache)<=max_seq_len:
+          
+                history = "\n\n".join(history_cache[:-1])      
+                self.train_dictionary[interaction_counter] = {'history':history,
+                                                                'question':sorted_interactions.iloc[-1].QuestionText,
+                                                              'options':{'A':sorted_interactions.iloc[-1].AnswerAText,'B':sorted_interactions.iloc[-1].AnswerBText,'C':sorted_interactions.iloc[-1].AnswerCText,'D':sorted_interactions.iloc[-1].AnswerDText},
+                                                                'correct_answer': 1 if sorted_interactions.iloc[-1].IsCorrect  else 0
+                                                                }
+            
+                
+              
             else:
         
                 history = "\n\n".join(history_cache[:max_seq_len]) 
@@ -273,6 +375,9 @@ class DataFrame2InteractionDictionary():
                        
                         value = 1 if interaction[field] else 0
                     item_parts.append(f"{label}: {value}")
+  
+
+          
       
 
   
@@ -376,6 +481,7 @@ class StudentInteractionsDataset(Dataset):
     def __init__(self, data_dict, tokenizer, max_length, cache_path=None):
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.total_tokens = 0
         
         # Try to load from cache first
         if cache_path and os.path.exists(cache_path):
@@ -401,10 +507,12 @@ class StudentInteractionsDataset(Dataset):
                     RESPONSE=item['correct_answer']
                 )
                 prompt = self.tokenizer.bos_token + prompt + self.tokenizer.eos_token
+                self.total_tokens+= len(self.tokenizer.encode(prompt))
                 if len(self.tokenizer.encode(prompt)) <= 40000:
                     filtered_data[key] = item
             
             self._data = filtered_data
+            print(f'total tokens is {self.total_tokens}')
             
             # Save to cache if path provided
             if cache_path:
@@ -429,14 +537,14 @@ class StudentInteractionsDataset(Dataset):
             option_d=item['options']['D'],
             RESPONSE=item['correct_answer']
         )
-        #prompt = self.tokenizer.bos_token + prompt + self.tokenizer.eos_token
-        prompt =  prompt + self.tokenizer.eos_token
+        prompt = self.tokenizer.bos_token + prompt + self.tokenizer.eos_token
+        #prompt =  prompt + self.tokenizer.eos_token
         return prompt
 
     def __getitemBinary__(self,idx):
         item = self._data[idx]
-        prompt = PROMPT_TEMPLATE.format(
-            INSTRUCTION=INSTRUCTION,
+        prompt = PROMPT_TEMPLATE_BINARY.format(
+            INSTRUCTION=INSTRUCTION_BINARY,
             history=item['history'],
             question=item['question'],
             option_a=item['options']['A'],
@@ -445,8 +553,8 @@ class StudentInteractionsDataset(Dataset):
             option_d=item['options']['D'],
             RESPONSE=item['correct_answer']
         )
-        #prompt = self.tokenizer.bos_token + prompt + self.tokenizer.eos_token
-        prompt =  prompt + self.tokenizer.eos_token
+        prompt = self.tokenizer.bos_token + prompt + self.tokenizer.eos_token
+        #prompt =  prompt + self.tokenizer.eos_token
         return prompt
         
 
@@ -465,6 +573,21 @@ class StudentInteractionsDataset(Dataset):
         prompt = prompt + " "
         return prompt, response
 
+    def __getTestitemBinary__(self, idx):
+        item = self._data[idx]
+        prompt = PROMPT_TEMPLATE_TEST_BINARY.format(
+            INSTRUCTION=INSTRUCTION,
+            history=item['history'],
+            question=item['question'],
+            option_a=item['options']['A'],
+            option_b=item['options']['B'],
+            option_c=item['options']['C'],
+            option_d=item['options']['D'],
+        )
+        response = item['correct_answer']
+        prompt = prompt + " "
+        return prompt, response
+    
     def load_debug_data(self, num_examples):
         texts = []
         keys = list(self._data.keys())[:num_examples]
@@ -476,24 +599,33 @@ class StudentInteractionsDataset(Dataset):
             "text": texts
         })
 
-    def load_data(self):
+    def load_data(self,task="options"):
         """Load all data"""
+        print(f'Loading data for the {task} task')
         texts = []
         for key in self._data:
-            prompt = self.__getitem__(key)
+
+            if task=="options":
+                prompt = self.__getitem__(key)
+            else:
+                prompt = self.__getitemBinary__(key)
             texts.append({"text": prompt})
         
         print(f'Number of Examples: {len(texts)}')
         return HFDataset.from_dict({"text": [item["text"] for item in texts]})
 
-    def load_test_data(self):
+    def load_test_data(self,task="binary"):
         texts = []
         responses = []
         
         keys = list(self._data.keys())
         
         for key in keys:
-            prompt, response = self.__getTestitem__(key)
+            if task == "options":
+                prompt, response = self.__getTestitem__(key)
+            else:
+                prompt, response = self.__getTestitemBinary__(key)
+
             texts.append(prompt)
             responses.append(response)
             
