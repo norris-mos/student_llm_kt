@@ -1,8 +1,10 @@
+
 from unsloth import FastLanguageModel
 import json
 import sys
 import re
 import os
+import gc
 from typing import Tuple, Optional
 sys.path.append('/mnt/ceph_rbd/student_llm_kt/src')
 sys.path.append('/mnt/ceph_rbd/student_llm_kt/src/DKT_src')
@@ -246,6 +248,8 @@ def generate_response_deterministic(model, tokenizer, batch_texts,task="options"
             max_length=40000
         ).to(model.device)
 
+   
+
         for i, text in enumerate(batch_texts):
             print(f"Sequence {i} tokens: {len(inputs['input_ids'][i])}")
 
@@ -287,7 +291,7 @@ def generate_response_deterministic(model, tokenizer, batch_texts,task="options"
 
 
 
-def process_dataset_in_batches_clean(model, tokenizer, dataset, batch_size=8,task="binary"):
+def process_dataset_in_batches_clean(model, tokenizer, dataset, batch_size=8,task="options"):
     """
     Process entire dataset in batches with memory management
     """
@@ -518,101 +522,132 @@ def load_data():
     return answers,questions,misconception,question_subject
 
 
-def inference(model,tokenizer,config):
 
 
 
 
+def save_checkpoint(checkpoint_dir, processed_indices, predictions, ground_truth):
+    """
+    Save checkpoint of current progress
+    """
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    checkpoint = {
+        'processed_indices': processed_indices,
+        'predictions': predictions,
+        'ground_truth': ground_truth
+    }
+    checkpoint_path = os.path.join(checkpoint_dir, 'checkpoint.pkl')
+    with open(checkpoint_path, 'wb') as f:
+        pickle.dump(checkpoint, f)
+    print(f"Checkpoint saved at: {checkpoint_path}")
+
+def load_checkpoint(checkpoint_dir):
+    """
+    Load checkpoint if it exists
+    """
+    checkpoint_path = os.path.join(checkpoint_dir, 'checkpoint.pkl')
+    if os.path.exists(checkpoint_path):
+        with open(checkpoint_path, 'rb') as f:
+            checkpoint = pickle.load(f)
+        print(f"Loaded checkpoint from: {checkpoint_path}")
+        return checkpoint
+    return None
+
+def process_dataset_with_checkpointing(model, tokenizer, dataset, batch_size=8, task="options", checkpoint_dir="checkpoints", checkpoint_frequency=100):
+    """
+    Process dataset with periodic checkpointing
+    """
+    # Initialize or load checkpoint
+    checkpoint = load_checkpoint(checkpoint_dir)
+    if checkpoint:
+        processed_indices = checkpoint['processed_indices']
+        all_predictions = list(checkpoint['predictions'])  # Convert to list to allow appending
+        ground_truth = list(checkpoint['ground_truth'])
+        start_idx = max(processed_indices) + 1 if processed_indices else 0
+    else:
+        processed_indices = set()
+        all_predictions = []
+        ground_truth = []
+        start_idx = 0
+
+    valid_answers = {'A', 'B', 'C', 'D', '1', '0'}
+    invalid_predictions = []
     
-    answers, questions, misconception, question_subject = load_data()
+    try:
+        # Process data in batches
+        for i in range(start_idx, len(dataset), batch_size):
+            torch.cuda.empty_cache()
 
-    loaded_dict = DataFrame2InteractionDictionary(answers, questions, misconception, question_subject, train_split=0.9, random_seed=42)
-    loaded_dict.createTestDict()
-
-    FastLanguageModel.for_inference(model)
-
-    dataset = StudentInteractionsDataset(
-        loaded_dict.test_dictionary,
-        tokenizer,
-        config['max_seq_length'],
-        cache_path=config["test_data"]
-    )
-
-    test_data = dataset.load_test_data()
-
-    test_texts = test_data['text'][:5]
-    ground_truth = test_data['response'][:5]  # Make sure this matches your dataset's true labels
-
-    print(f"Doing inference over {len(test_texts)} examples")
-    predictions = process_dataset_in_batches_clean(model, tokenizer, test_texts, batch_size=2)
-
-    # Calculate metrics
-    metrics = calculate_classification_metrics(ground_truth, predictions)
-
-    # Print detailed report
-    print_classification_report(metrics)
-
-    # Save predictions and metrics
-    results_dir = f'{config["output_dir"]}'
-    os.makedirs(results_dir, exist_ok=True)
-
-    # Save predictions
-    predictions_df = pd.DataFrame({
-        'ground_truth': ground_truth,
-        'prediction': predictions
-    })
-    predictions_path = os.path.join(results_dir, 'predictions.csv')
-    predictions_df.to_csv(predictions_path, index=False)
-
-    # Save metrics as JSON
-    metrics_path = os.path.join(results_dir, 'metrics.json')
-    with open(metrics_path, 'w') as f:
-        json.dump(metrics, f, indent=4)
-
-    # Save confusion matrix visualization
-    if 'confusion_matrix' in metrics:
-        import seaborn as sns
-        import matplotlib.pyplot as plt
+           
+            
+            # Get current batch
+            batch = dataset[i:i + min(batch_size, len(dataset) - i)]
+            batch_ground_truth = dataset['response'][i:i + len(batch)]
+            
+            # Generate predictions for batch
+            print(batch)
         
-        plt.figure(figsize=(10, 8))
-        sns.heatmap(
-            metrics['confusion_matrix'],
-            annot=True,
-            fmt='d',
-            xticklabels=['A', 'B', 'C', 'D'],
-            yticklabels=['A', 'B', 'C', 'D']
-        )
-        plt.title('Confusion Matrix')
-        plt.xlabel('Predicted')
-        plt.ylabel('True')
-        
-        cm_path = os.path.join(results_dir, 'confusion_matrix.png')
-        plt.savefig(cm_path)
-        plt.close()
-
-    print(f"\nResults saved to {results_dir}:")
-    print(f"- Predictions: {predictions_path}")
-    print(f"- Metrics: {metrics_path}")
-    print(f"- Confusion Matrix: {cm_path}")
-
+            batch_predictions = generate_response_deterministic(model, tokenizer, batch['tex[b[[[[[[t'], task=task)
+            
+            # Process and validate predictions
+            for idx, (pred, truth) in enumerate(zip(batch_predictions, batch_ground_truth)):
+                global_idx = i + idx
+                if global_idx not in processed_indices:
+                    cleaned_pred = pred.strip().upper() if isinstance(pred, str) else pred
+                    if cleaned_pred not in valid_answers:
+                        invalid_predictions.append({
+                            'index': global_idx,
+                            'original_prediction': pred,
+                            'cleaned_prediction': cleaned_pred
+                        })
+                        cleaned_pred = 'NAN'
+                    
+                    all_predictions.append(cleaned_pred)
+                    ground_truth.append(truth)
+                    processed_indices.add(global_idx)
+            
+            # Save checkpoint periodically
+            if len(processed_indices) % checkpoint_frequency == 0:
+                save_checkpoint(checkpoint_dir, processed_indices, all_predictions, ground_truth)
+            
+            # Print progress
+            print(f"Processed {len(processed_indices)}/{len(dataset)} samples")
+            print(f"GPU Memory allocated: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+            
+            # Periodic cleanup
+            if len(processed_indices) % (batch_size * 10) == 0:
+                gc.collect()
+                torch.cuda.empty_cache()
+    
+    except Exception as e:
+        print(f"Error during processing: {e}")
+        # Save checkpoint on error
+        save_checkpoint(checkpoint_dir, processed_indices, all_predictions, ground_truth)
+        raise
+    
+    finally:
+        # Final cleanup
+        torch.cuda.empty_cache()
+    
+    return all_predictions, ground_truth
 
 def main():
-
-
-
-
     args = parse_args()
 
     with open(args.config, 'r') as f:
         config = json.load(f)
 
+    # Create checkpoint directory
+    checkpoint_dir = os.path.join(config['output_dir'], 'checkpoints')
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    # Load data and model
     answers, questions, misconception, question_subject = load_data()
-
     loaded_dict = DataFrame2InteractionDictionary(answers, questions, misconception, question_subject, train_split=0.9, random_seed=42)
+    
     if config["task"] == "binary":
-        print(f'Carrying out binary KT task')
+        print('Carrying out binary KT task')
         loaded_dict.createTestDictBinary()
-
     else:
         loaded_dict.createTestDict()
 
@@ -629,31 +664,32 @@ def main():
         config['max_seq_length'],
         cache_path=config["test_data"]
     )
-    print(config['test_data'])
 
     test_data = dataset.load_test_data(task=config["task"])
-
     test_texts = test_data['text']
     
-    ground_truth = test_data['response'] # Make sure this matches your dataset's true labels
 
-    print(f"Doing inference over {len(test_texts)} examples")
-    predictions = process_dataset_in_batches_clean(model, tokenizer, test_texts, batch_size=1,task=config["task"])
-    print(predictions)
-    print(ground_truth)
-
-    # Calculate metrics
-    metrics = calculate_classification_metrics(ground_truth, predictions,classification_type=config["task"])
-
-    # Print detailed report
+    print(f"Starting inference over {len(test_texts)} examples")
     
+    # Process dataset with checkpointing
+    predictions, ground_truth = process_dataset_with_checkpointing(
+        model, 
+        tokenizer, 
+        test_data, 
+        batch_size=1,
+        task=config["task"],
+        checkpoint_dir=checkpoint_dir,
+        checkpoint_frequency=50  # Save checkpoint every 50 samples
+    )
+
+    # Calculate and save metrics
+    metrics = calculate_classification_metrics(ground_truth, predictions, classification_type=config["task"])
     print_classification_report(metrics)
 
-    # Save predictions and metrics
+    # Save final results
     results_dir = config['output_dir']
     os.makedirs(results_dir, exist_ok=True)
 
-    # Save predictions
     predictions_df = pd.DataFrame({
         'ground_truth': ground_truth,
         'prediction': predictions
@@ -661,23 +697,23 @@ def main():
     predictions_path = os.path.join(results_dir, 'predictions.csv')
     predictions_df.to_csv(predictions_path, index=False)
 
-    # Save metrics as JSON
     metrics_path = os.path.join(results_dir, 'metrics.json')
     with open(metrics_path, 'w') as f:
         json.dump(metrics, f, indent=4)
 
-    # Save confusion matrix visualization
+    # Save confusion matrix
     if 'confusion_matrix' in metrics:
         import seaborn as sns
         import matplotlib.pyplot as plt
         
         plt.figure(figsize=(10, 8))
+        class_labels = ['A', 'B', 'C', 'D'] if config["task"] == "options" else ['0', '1']
         sns.heatmap(
             metrics['confusion_matrix'],
             annot=True,
             fmt='d',
-            xticklabels=['A', 'B', 'C', 'D'],
-            yticklabels=['A', 'B', 'C', 'D']
+            xticklabels=class_labels,
+            yticklabels=class_labels
         )
         plt.title('Confusion Matrix')
         plt.xlabel('Predicted')

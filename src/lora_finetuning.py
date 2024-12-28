@@ -247,7 +247,7 @@ def finetune_model_cv(config_path, n_splits=5, project_name="model-finetuning"):
             dataset_text_field="text",
             callbacks=[
                 EarlyStoppingCallback(
-                    early_stopping_patience=2,
+                    early_stopping_patience=10,
                     early_stopping_threshold=0.001
                 ),
                 WandbCallback(fold=fold)
