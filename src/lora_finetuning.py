@@ -128,7 +128,7 @@ def finetune_model(config_path):
     return model, tokenizer
 
 
-def finetune_model_cv(config_path, n_splits=5, project_name="model-finetuning"):
+def finetune_model_cv(config_path, n_splits=2, project_name="model-finetuning"):
     # Load configuration
     with open(config_path, 'r') as f:
         config = json.load(f)
@@ -163,7 +163,7 @@ def finetune_model_cv(config_path, n_splits=5, project_name="model-finetuning"):
         config['max_seq_length'],
         cache_path=config['data_path']
     )
-    train_data = dataset.load_data(task="binary")
+    train_data = dataset.load_data(task="options")
         # Convert to format expected by SFTTrainer
     # formatted_dataset = Dataset.from_dict({
     #     'text': train_data
@@ -230,10 +230,11 @@ def finetune_model_cv(config_path, n_splits=5, project_name="model-finetuning"):
             bf16=is_bfloat16_supported(),
             output_dir=fold_output_dir,
             evaluation_strategy="steps",     
-            eval_steps=250,                  # Increased from 2 to reduce overhead
+            eval_steps=500,                  # Increased from 2 to reduce overhead
             save_strategy="steps",
-            save_steps=250,
-            load_best_model_at_end=True,     
+            save_steps=500,
+            load_best_model_at_end=True,
+   
             metric_for_best_model="loss",
             greater_is_better=False,
         )
@@ -247,8 +248,8 @@ def finetune_model_cv(config_path, n_splits=5, project_name="model-finetuning"):
             dataset_text_field="text",
             callbacks=[
                 EarlyStoppingCallback(
-                    early_stopping_patience=10,
-                    early_stopping_threshold=0.001
+                    early_stopping_patience=50,
+                    early_stopping_threshold=0.0001
                 ),
                 WandbCallback(fold=fold)
             ],

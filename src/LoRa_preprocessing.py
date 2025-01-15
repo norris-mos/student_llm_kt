@@ -506,6 +506,7 @@ class StudentInteractionsDataset(Dataset):
                     option_d=item['options']['D'],
                     RESPONSE=item['correct_answer']
                 )
+                #prompt = self.tokenizer.bos_token + prompt + self.tokenizer.eos_token
                 prompt = self.tokenizer.bos_token + prompt + self.tokenizer.eos_token
                 self.total_tokens+= len(self.tokenizer.encode(prompt))
                 if len(self.tokenizer.encode(prompt)) <= 40000:
@@ -537,8 +538,8 @@ class StudentInteractionsDataset(Dataset):
             option_d=item['options']['D'],
             RESPONSE=item['correct_answer']
         )
-        prompt = self.tokenizer.bos_token + prompt + self.tokenizer.eos_token
-        #prompt =  prompt + self.tokenizer.eos_token
+        #prompt = self.tokenizer.bos_token + prompt + self.tokenizer.eos_token
+        prompt =  prompt + self.tokenizer.eos_token
         return prompt
 
     def __getitemBinary__(self,idx):
@@ -553,8 +554,8 @@ class StudentInteractionsDataset(Dataset):
             option_d=item['options']['D'],
             RESPONSE=item['correct_answer']
         )
-        prompt = self.tokenizer.bos_token + prompt + self.tokenizer.eos_token
-        #prompt =  prompt + self.tokenizer.eos_token
+        #prompt = self.tokenizer.bos_token + prompt + self.tokenizer.eos_token
+        prompt =  prompt + self.tokenizer.eos_token
         return prompt
         
 

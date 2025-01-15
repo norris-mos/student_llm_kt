@@ -3,6 +3,7 @@
     "max_seq_length": 40000,
     "load_in_4bit": true,
     "hf_token": null,
+    "task": "options",
     "peft_config": {
         "r": 16,
         "target_modules": [

@@ -581,13 +581,14 @@ def process_dataset_with_checkpointing(model, tokenizer, dataset, batch_size=8, 
            
             
             # Get current batch
+      
             batch = dataset[i:i + min(batch_size, len(dataset) - i)]
             batch_ground_truth = dataset['response'][i:i + len(batch)]
             
             # Generate predictions for batch
-            print(batch)
+            #print(batch)
         
-            batch_predictions = generate_response_deterministic(model, tokenizer, batch['tex[b[[[[[[t'], task=task)
+            batch_predictions = generate_response_deterministic(model, tokenizer, batch['text'], task=task)
             
             # Process and validate predictions
             for idx, (pred, truth) in enumerate(zip(batch_predictions, batch_ground_truth)):
