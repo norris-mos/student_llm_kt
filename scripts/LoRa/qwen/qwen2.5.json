@@ -23,12 +23,12 @@
         "use_rslora": false,
         "loftq_config": null
     },
-    "data_path": "/mnt/ceph_rbd/data/interaction_dictionaries/filtered_interaction_dictionaries/train_lora_qwen_0.9.pt",
+    "data_path": "/mnt/data/interaction_dictionaries/filtered_interaction_dictionaries/train_ood_0.9.pt",
     "dataset_num_proc": 2,
-    "inference_checkpoint": "/mnt/ceph_rbd/data/models/qwen/best_model",
+    "inference_checkpoint": "/mnt/ceph_rbd/data/models/qwen/fold_0/checkpoint-7500",
     "test_data": "/mnt/ceph_rbd/data/interaction_dictionaries/filtered_interaction_dictionaries/test_lora_qwen_0.1.pt",
     "packing": false,
-    "output_dir": "/mnt/ceph_rbd/data/models/qwen",
+    "output_dir": "/mnt/ceph_rbd/data/models/qwen/ood/",
     "training_args": {
         "per_device_train_batch_size": 2,
         "gradient_accumulation_steps": 8,

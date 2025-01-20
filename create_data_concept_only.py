@@ -17,8 +17,8 @@ print(data_dir)
 
 
 # Add source directories to path
-sys.path.append(os.path.join(project_root, 'src'))
-sys.path.append(os.path.join(project_root, 'src/DKT_src'))
+sys.path.append(os.path.join(script_dir, 'src'))
+sys.path.append(os.path.join(script_dir, 'src/DKT_src'))
 
 from transformers import AutoTokenizer
 from LoRa_preprocessing import StudentInteractionsDataset, DataFrame2InteractionDictionary, load_data
@@ -48,8 +48,8 @@ tokenizer = AutoTokenizer.from_pretrained("unsloth/Llama-3.2-3B-bnb-4bit",
 )
 
 # finetune cache
-train_cache = os.path.join(data_dir, 'data/interaction_dictionaries/filtered_interaction_dictionaries/train_lora_notext_0.9.pt')
-test_cache = os.path.join(data_dir, 'data/interaction_dictionaries/filtered_interaction_dictionaries/test_lora_notext_0.1.pt')
+train_cache = os.path.join(data_dir, 'data/interaction_dictionaries/filtered_interaction_dictionaries/train_lora_concept_0.9.pt')
+test_cache = os.path.join(data_dir, 'data/interaction_dictionaries/filtered_interaction_dictionaries/test_lora_concept_0.1.pt')
 train = StudentInteractionsDataset(data.train_dictionary, tokenizer, 4848484848, cache_path=train_cache)
 test = StudentInteractionsDataset(data.test_dictionary, tokenizer, 8498578498, cache_path=test_cache)
 
