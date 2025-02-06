@@ -39,8 +39,8 @@ include_fields_noq = {
 answers, questions, misconceptions, question_subject = load_data(os.path.join(data_dir, 'data'))
 
 data = DataFrame2InteractionDictionary(answers, questions, misconceptions, question_subject, train_split=0.9)
-data.createTrainDictionary(3456784,include_fields=include_fields_noq)
-data.createTestDict(include_fields=include_fields_noq)
+data.createTrainDictionaryNoConcept(3456784,include_fields=include_fields_noq)
+data.createTestDictNoConcept(include_fields=include_fields_noq)
 
 tokenizer = AutoTokenizer.from_pretrained("unsloth/Llama-3.2-3B-bnb-4bit", 
     padding_side="right",
@@ -48,8 +48,8 @@ tokenizer = AutoTokenizer.from_pretrained("unsloth/Llama-3.2-3B-bnb-4bit",
 )
 
 # finetune cache
-train_cache = os.path.join(data_dir, 'data/interaction_dictionaries/filtered_interaction_dictionaries/train_lora_concept_0.9.pt')
-test_cache = os.path.join(data_dir, 'data/interaction_dictionaries/filtered_interaction_dictionaries/test_lora_concept_0.1.pt')
+train_cache = os.path.join(data_dir, '/mnt/ceph_rbd/data/interaction_dictionaries/filtered_interaction_dictionaries/train_lora_concept_0.9.pt')
+test_cache = os.path.join(data_dir, '/mnt/ceph_rbd/data/interaction_dictionaries/filtered_interaction_dictionaries/test_lora_concept_0.1.pt')
 train = StudentInteractionsDataset(data.train_dictionary, tokenizer, 4848484848, cache_path=train_cache)
 test = StudentInteractionsDataset(data.test_dictionary, tokenizer, 8498578498, cache_path=test_cache)
 

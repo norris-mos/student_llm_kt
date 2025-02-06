@@ -21,7 +21,7 @@ Weighted Average:
                61.68%     61.65%     61.54%
 
 
-llama1-b
+llama3-b
 Classification Report
 ==================================================
 Total Samples: 135153
@@ -46,7 +46,7 @@ Macro Average:
 Weighted Average:
                57.99%     54.85%     54.41%
 
-llama3b
+llama1b
 ==================================================
 Total Samples: 135153
 Valid Predictions: 135153
