@@ -1,9 +1,5 @@
 
 
-SPECIAL_TOKENS = {
-    'additional_special_tokens':[STUDENT_START_TOKEN,INTERACTION_SEP_TOKEN,HISTORY_END_TOKEN]
-}
-
 PROMPT_TEMPLATE = """
 
 ### Instruction:
